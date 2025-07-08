@@ -81,22 +81,35 @@ public class OrdersService : IOrdersService
 
   public async Task<bool> DeleteOrder(Guid orderID)
   {
-    throw new NotImplementedException();
+    FilterDefinition<Order> filter = Builders<Order>.Filter.Eq(order => order.OrderID, orderID);
+    Order? existingOrder = await _ordersRepository.GetOrderByCondition(filter);
+
+    if (existingOrder is null) return false;
+
+    bool isDeleted = await _ordersRepository.DeleteOrder(orderID);
+
+    return isDeleted;
   }
 
   public async Task<OrderResponse?> GetOrderByCondition(FilterDefinition<Order> filter)
   {
-    throw new NotImplementedException();
+    Order? matchedOrder = await _ordersRepository.GetOrderByCondition(filter);
+
+    if(matchedOrder is null) return null;
+
+    return _mapper.Map<OrderResponse>(matchedOrder);
   }
 
   public async Task<List<OrderResponse?>> GetOrders()
   {
-    throw new NotImplementedException();
+    IEnumerable<Order> orders = await _ordersRepository.GetOrders();
+    return _mapper.Map<List<OrderResponse?>>(orders);
   }
 
   public async Task<List<OrderResponse?>> GetOrdersByCondition(FilterDefinition<Order> filter)
   {
-    throw new NotImplementedException();
+    IEnumerable<Order?> matchedOrders = await _ordersRepository.GetOrdersByCondition(filter);    
+    return _mapper.Map<List<OrderResponse?>>(matchedOrders);
   }
 
   public async Task<OrderResponse?> UpdateOrder(OrderUpdateRequest orderUpdateRequest)

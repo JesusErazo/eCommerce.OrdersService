@@ -1,4 +1,6 @@
 ﻿using eCommerce.OrdersService.BusinessLogicLayer.Mappers;
+using eCommerce.OrdersService.BusinessLogicLayer.ServiceContracts;
+using eCommerce.OrdersService.BusinessLogicLayer.Services;
 using eCommerce.OrdersService.BusinessLogicLayer.Validators;
 using FluentValidation;
 using Microsoft.Extensions.Configuration;
@@ -15,6 +17,8 @@ public static class DependencyInjection
 
     //AutoMapper
     services.AddAutoMapper(typeof(OrderAddRequestToOrderMappingProfile).Assembly);
+
+    services.AddScoped<IOrdersService, eCommerce.OrdersService.BusinessLogicLayer.Services.OrdersService>();
     return services;
   }
 
