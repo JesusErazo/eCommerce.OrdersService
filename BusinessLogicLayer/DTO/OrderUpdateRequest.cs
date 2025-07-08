@@ -4,7 +4,7 @@
     Guid OrderID,
     Guid UserID,
     DateTime OrderDate,
-    List<OrderItemAddRequest> OrderItems
+    List<OrderItemUpdateRequest> OrderItems
     )
   {
     public OrderUpdateRequest(): this(default, default, default, default) { }
