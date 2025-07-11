@@ -49,11 +49,12 @@ public class OrdersController : ControllerBase
   [HttpGet("search/orderdate/{orderDate:datetime}")]
   public async Task<IEnumerable<OrderResponse?>> GetOrdersByOrderDate(DateTime orderDate)
   {
-    FilterDefinition<Order> filter = Builders<Order>.Filter
-      .Eq(
-        order => order.OrderDate.ToString("yyyy-MM-dd"), 
-        orderDate.ToString("yyyy-MM-dd")
-      );
+    DateTime start = orderDate;
+    DateTime end = orderDate.AddDays(1);
+
+    FilterDefinition<Order> filter = 
+      Builders<Order>.Filter.Gte(order => order.OrderDate, start) &
+      Builders<Order>.Filter.Lt(order => order.OrderDate, end);
 
     return await _ordersService.GetOrdersByCondition(filter); 
   }
