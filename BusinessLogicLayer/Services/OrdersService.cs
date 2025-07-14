@@ -1,6 +1,7 @@
 ﻿using AutoMapper;
 using eCommerce.OrdersService.BusinessLogicLayer.DTO;
 using eCommerce.OrdersService.BusinessLogicLayer.Extensions;
+using eCommerce.OrdersService.BusinessLogicLayer.HttpClients;
 using eCommerce.OrdersService.BusinessLogicLayer.ServiceContracts;
 using eCommerce.OrdersService.DataAccessLayer.Entities;
 using eCommerce.OrdersService.DataAccessLayer.RepositoryContracts;
@@ -18,6 +19,7 @@ public class OrdersService : IOrdersService
   private readonly IValidator<OrderItemAddRequest> _orderItemAddValidator;
   private readonly IValidator<OrderUpdateRequest> _orderUpdateValidator;
   private readonly IValidator<OrderItemUpdateRequest> _orderItemUpdateValidator;
+  private UsersMicroserviceClient _usersMicroserviceClient;
 
 
   public OrdersService(
@@ -26,7 +28,8 @@ public class OrdersService : IOrdersService
     IValidator<OrderAddRequest> orderAddValidator,
     IValidator<OrderItemAddRequest> orderItemAddValidator,
     IValidator<OrderUpdateRequest> orderUpdateValidator,
-    IValidator<OrderItemUpdateRequest> orderItemUpdateValidator
+    IValidator<OrderItemUpdateRequest> orderItemUpdateValidator,
+    UsersMicroserviceClient usersMicroserviceClient
     )
   {
     _ordersRepository = ordersRepository;
@@ -35,6 +38,7 @@ public class OrdersService : IOrdersService
     _orderItemAddValidator = orderItemAddValidator;
     _orderUpdateValidator = orderUpdateValidator;
     _orderItemUpdateValidator = orderItemUpdateValidator;
+    _usersMicroserviceClient = usersMicroserviceClient;
   }
 
   public async Task<OrderResponse?> AddOrder(OrderAddRequest orderAddRequest)
@@ -60,7 +64,12 @@ public class OrdersService : IOrdersService
       }
     }
 
-    //TO DO: Add logic for checking if UserID exists in Users microservice
+    //Validate if UserID exists in Users microservice
+    UserResponse? existingUser = await _usersMicroserviceClient.GetUserByUserID(orderAddRequest.UserID);
+
+    if (existingUser is null) {
+      throw new ArgumentException("Invalid User ID");
+    }
 
     Order orderInput = _mapper.Map<Order>(orderAddRequest);
 
@@ -136,7 +145,13 @@ public class OrdersService : IOrdersService
       }
     }
 
-    //TO DO: Add logic for checking if UserID exists in Users microservice
+    //Validate if UserID exists in Users microservice
+    UserResponse? existingUser = await _usersMicroserviceClient.GetUserByUserID(orderUpdateRequest.UserID);
+
+    if (existingUser is null)
+    {
+      throw new ArgumentException("Invalid User ID");
+    }
 
     Order orderInput = _mapper.Map<Order>(orderUpdateRequest);
 
