@@ -20,6 +20,7 @@ public class OrdersService : IOrdersService
   private readonly IValidator<OrderUpdateRequest> _orderUpdateValidator;
   private readonly IValidator<OrderItemUpdateRequest> _orderItemUpdateValidator;
   private UsersMicroserviceClient _usersMicroserviceClient;
+  private ProductsMicroserviceClient _productsMicroserviceClient;
 
 
   public OrdersService(
@@ -29,7 +30,8 @@ public class OrdersService : IOrdersService
     IValidator<OrderItemAddRequest> orderItemAddValidator,
     IValidator<OrderUpdateRequest> orderUpdateValidator,
     IValidator<OrderItemUpdateRequest> orderItemUpdateValidator,
-    UsersMicroserviceClient usersMicroserviceClient
+    UsersMicroserviceClient usersMicroserviceClient,
+    ProductsMicroserviceClient productsMicroserviceClient
     )
   {
     _ordersRepository = ordersRepository;
@@ -39,6 +41,7 @@ public class OrdersService : IOrdersService
     _orderUpdateValidator = orderUpdateValidator;
     _orderItemUpdateValidator = orderItemUpdateValidator;
     _usersMicroserviceClient = usersMicroserviceClient;
+    _productsMicroserviceClient = productsMicroserviceClient;
   }
 
   public async Task<OrderResponse?> AddOrder(OrderAddRequest orderAddRequest)
@@ -61,6 +64,14 @@ public class OrdersService : IOrdersService
       if (!orderItemValidationResult.IsValid) {
         string errors = orderItemValidationResult.Errors.ToBasicFormat().ToString();
         throw new ArgumentException(errors);
+      }
+
+      //TO DO: Add logic for checking if productID exist in products microservice
+      ProductResponse? existingProduct = await _productsMicroserviceClient.GetProductByID(item.ProductID);
+
+      if(existingProduct is null)
+      {
+        throw new ArgumentException($"Invalid product ID {item.ProductID.ToString()}");
       }
     }
 
@@ -142,6 +153,14 @@ public class OrdersService : IOrdersService
       {
         string errors = orderItemUpdateValidationResult.Errors.ToBasicFormat().ToString();
         throw new ArgumentException(errors);
+      }
+
+      //TO DO: Add logic for checking if productID exist in products microservice
+      ProductResponse? existingProduct = await _productsMicroserviceClient.GetProductByID(item.ProductID);
+
+      if (existingProduct is null)
+      {
+        throw new ArgumentException($"Invalid product ID {item.ProductID.ToString()}");
       }
     }
 
