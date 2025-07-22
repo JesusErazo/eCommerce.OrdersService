@@ -90,6 +90,9 @@ public class OrdersService : IOrdersService
 
     OrderResponse addedOrderResponse = _mapper.Map<OrderResponse>(addedOrder);
 
+    //Set order user details
+    SetOrderUserDetails(addedOrderResponse, existingUser);
+
     //Set order item details
     SetOrderItemsDetails(addedOrderResponse, existingProducts);
 
@@ -116,6 +119,13 @@ public class OrdersService : IOrdersService
 
     OrderResponse orderResponse = _mapper.Map<OrderResponse>(matchedOrder);
 
+    UserResponse? userData = await _usersMicroserviceClient.GetUserByUserID(orderResponse.UserID);
+    
+    if(userData != null)
+    {
+      SetOrderUserDetails(orderResponse, userData);
+    }
+
     await GetAndSetOrderItemsDetails(orderResponse);
 
     return orderResponse;
@@ -126,6 +136,8 @@ public class OrdersService : IOrdersService
     IEnumerable<Order> orders = await _ordersRepository.GetOrders();
 
     List<OrderResponse?> orderResponses = _mapper.Map<List<OrderResponse?>>(orders);
+
+    await GetAndSetOrdersUserDetails(orderResponses);
 
     foreach (OrderResponse? orderResponse in orderResponses)
     {
@@ -140,6 +152,8 @@ public class OrdersService : IOrdersService
   {
     IEnumerable<Order?> matchedOrders = await _ordersRepository.GetOrdersByCondition(filter);
     List<OrderResponse?> orderResponses = _mapper.Map<List<OrderResponse?>>(matchedOrders);
+
+    await GetAndSetOrdersUserDetails(orderResponses);
 
     foreach (OrderResponse? orderResponse in orderResponses)
     {
@@ -197,10 +211,52 @@ public class OrdersService : IOrdersService
 
     OrderResponse updatedOrderResponse = _mapper.Map<OrderResponse>(updatedOrder);
 
+    //Set order user details
+    SetOrderUserDetails(updatedOrderResponse, existingUser);
+
     //Set order item details
     SetOrderItemsDetails(updatedOrderResponse, existingProducts);
 
     return updatedOrderResponse;
+  }
+
+  private async Task GetAndSetOrdersUserDetails(IEnumerable<OrderResponse?> orders)
+  {
+    if(orders is null || !orders.Any()) return;
+
+    Guid[] userIDs = orders
+      .Where(order => order is not null && order.UserID != Guid.Empty)
+      .Select(order => order!.UserID)
+      .ToArray();
+
+    if (userIDs.Length < 1) return;
+
+    IEnumerable<UserResponse?> usersData = await _usersMicroserviceClient.GetUsersByUserIDs(userIDs);
+    
+    if (!usersData.Any()) return;
+
+    Dictionary<Guid, UserResponse?> usersDataDict = usersData
+      .Where(u => u != null)
+      .ToDictionary(u => u!.UserID);
+
+    foreach(OrderResponse? order in orders)
+    {
+      if(order is null) continue;
+
+      if (usersDataDict.TryGetValue(order.UserID, out UserResponse? userData))
+      {
+        SetOrderUserDetails(order, userData);
+      }
+    }
+  }
+
+  private void SetOrderUserDetails(OrderResponse? order, UserResponse? userData)
+  {
+    if (order is null || userData is null) return;
+
+    if (order.UserID != userData.UserID) return;
+
+    _mapper.Map(userData, order);
   }
 
   private async Task GetAndSetOrderItemsDetails(OrderResponse? order)
