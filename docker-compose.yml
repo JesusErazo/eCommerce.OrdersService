@@ -14,7 +14,7 @@ services:
       - PRODUCTS_MICROSERVICE_NAME=products-service
       - PRODUCTS_MICROSERVICE_PORT=8080
     ports:
-      - "7000:8080"
+      - "7001:8080"
     networks:
       - orders-mongodb-network
       - ecommerce-network
@@ -41,7 +41,7 @@ services:
       - MYSQL_PORT=3306
       - MYSQL_USER=root
     ports:
-      - "6000:8080"
+      - "6001:8080"
     networks:
       - products-mysql-network
       - ecommerce-network
@@ -70,7 +70,7 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PORT=5432
     ports:
-      - "5000:9090"
+      - "5001:9090"
     networks:
       - users-postgres-network
       - ecommerce-network
