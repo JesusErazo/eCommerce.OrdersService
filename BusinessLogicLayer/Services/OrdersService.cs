@@ -65,38 +65,35 @@ public class OrdersService : IOrdersService
         string errors = orderItemValidationResult.Errors.ToBasicFormat().ToString();
         throw new ArgumentException(errors);
       }
-
-      //TO DO: Add logic for checking if productID exist in products microservice
-      ProductResponse? existingProduct = await _productsMicroserviceClient.GetProductByID(item.ProductID);
-
-      if(existingProduct is null)
-      {
-        throw new ArgumentException($"Invalid product ID {item.ProductID.ToString()}");
-      }
     }
-
+    
     //Validate if UserID exists in Users microservice
     UserResponse? existingUser = await _usersMicroserviceClient.GetUserByUserID(orderAddRequest.UserID);
 
-    if (existingUser is null) {
+    if (existingUser is null)
+    {
       throw new ArgumentException("Invalid User ID");
     }
+
+    //Logic for checking if productID exist in products microservice
+    Guid[] productIDs = orderAddRequest.OrderItems.Select(x => x.ProductID).ToArray();
+    IEnumerable<ProductResponse?> existingProducts = await ValidateAndGetProductIDsExistInProductsMS(productIDs);
 
     Order orderInput = _mapper.Map<Order>(orderAddRequest);
 
     //Generate values
-    foreach (OrderItem item in orderInput.OrderItems)
-    {
-      item.TotalPrice = (item.UnitPrice * item.Quantity);
-    }
-
-    orderInput.TotalBill = orderInput.OrderItems.Sum(item => item.TotalPrice);
+    CalculateOrderValues(orderInput);
 
     Order? addedOrder = await _ordersRepository.AddOrder(orderInput);
 
     if (addedOrder is null) return null;
 
-    return _mapper.Map<OrderResponse>(addedOrder);
+    OrderResponse addedOrderResponse = _mapper.Map<OrderResponse>(addedOrder);
+
+    //Set order item details
+    SetOrderItemsDetails(addedOrderResponse, existingProducts);
+
+    return addedOrderResponse;
   }
 
   public async Task<bool> DeleteOrder(Guid orderID)
@@ -117,19 +114,40 @@ public class OrdersService : IOrdersService
 
     if(matchedOrder is null) return null;
 
-    return _mapper.Map<OrderResponse>(matchedOrder);
+    OrderResponse orderResponse = _mapper.Map<OrderResponse>(matchedOrder);
+
+    await GetAndSetOrderItemsDetails(orderResponse);
+
+    return orderResponse;
   }
 
   public async Task<List<OrderResponse?>> GetOrders()
   {
     IEnumerable<Order> orders = await _ordersRepository.GetOrders();
-    return _mapper.Map<List<OrderResponse?>>(orders);
+
+    List<OrderResponse?> orderResponses = _mapper.Map<List<OrderResponse?>>(orders);
+
+    foreach (OrderResponse? orderResponse in orderResponses)
+    {
+      if (orderResponse is null) continue;
+      await GetAndSetOrderItemsDetails(orderResponse);
+    }
+
+    return orderResponses;
   }
 
   public async Task<List<OrderResponse?>> GetOrdersByCondition(FilterDefinition<Order> filter)
   {
-    IEnumerable<Order?> matchedOrders = await _ordersRepository.GetOrdersByCondition(filter);    
-    return _mapper.Map<List<OrderResponse?>>(matchedOrders);
+    IEnumerable<Order?> matchedOrders = await _ordersRepository.GetOrdersByCondition(filter);
+    List<OrderResponse?> orderResponses = _mapper.Map<List<OrderResponse?>>(matchedOrders);
+
+    foreach (OrderResponse? orderResponse in orderResponses)
+    {
+      if (orderResponse is null) continue;
+      await GetAndSetOrderItemsDetails(orderResponse);
+    }
+    
+    return orderResponses;
   }
 
   public async Task<OrderResponse?> UpdateOrder(OrderUpdateRequest orderUpdateRequest)
@@ -154,14 +172,6 @@ public class OrdersService : IOrdersService
         string errors = orderItemUpdateValidationResult.Errors.ToBasicFormat().ToString();
         throw new ArgumentException(errors);
       }
-
-      //TO DO: Add logic for checking if productID exist in products microservice
-      ProductResponse? existingProduct = await _productsMicroserviceClient.GetProductByID(item.ProductID);
-
-      if (existingProduct is null)
-      {
-        throw new ArgumentException($"Invalid product ID {item.ProductID.ToString()}");
-      }
     }
 
     //Validate if UserID exists in Users microservice
@@ -172,20 +182,84 @@ public class OrdersService : IOrdersService
       throw new ArgumentException("Invalid User ID");
     }
 
+    //logic for checking if product IDs exist in products microservice
+    Guid[] productIDs = orderUpdateRequest.OrderItems.Select(x => x.ProductID).ToArray();
+    IEnumerable<ProductResponse?> existingProducts = await ValidateAndGetProductIDsExistInProductsMS(productIDs);
+
     Order orderInput = _mapper.Map<Order>(orderUpdateRequest);
 
     //Generate values
-    foreach (OrderItem item in orderInput.OrderItems)
-    {
-      item.TotalPrice = (item.UnitPrice * item.Quantity);
-    }
-
-    orderInput.TotalBill = orderInput.OrderItems.Sum(item => item.TotalPrice);
+    CalculateOrderValues(orderInput);
 
     Order? updatedOrder = await _ordersRepository.UpdateOrder(orderInput);
 
     if (updatedOrder is null) return null;
 
-    return _mapper.Map<OrderResponse>(updatedOrder);
+    OrderResponse updatedOrderResponse = _mapper.Map<OrderResponse>(updatedOrder);
+
+    //Set order item details
+    SetOrderItemsDetails(updatedOrderResponse, existingProducts);
+
+    return updatedOrderResponse;
+  }
+
+  private async Task GetAndSetOrderItemsDetails(OrderResponse? order)
+  {
+    //Get and Set details of each order item from products microservice
+    
+    if (order is null || order.OrderItems.Count < 1) return;
+
+    Guid[] orderProductIDs = order.OrderItems.Select(item => item.ProductID).ToArray();
+
+    IEnumerable<ProductResponse?> orderProducts = await _productsMicroserviceClient.GetProductsByProductIDs(orderProductIDs);
+
+    SetOrderItemsDetails(order, orderProducts);
+  }
+
+  private void SetOrderItemsDetails(OrderResponse? order, IEnumerable<ProductResponse?> orderProductsData)
+  {
+    //Set details of each order item from provided orderProductsData object
+
+    if (order is null || order.OrderItems.Count < 1) return;
+
+    if (orderProductsData.Count() < 1) return;
+
+    Dictionary<Guid, ProductResponse?> orderProductsDict = orderProductsData
+      .Where(p => p != null)
+      .ToDictionary(p => p!.ProductID);
+
+    foreach (OrderItemResponse item in order.OrderItems)
+    {
+      if (orderProductsDict.TryGetValue(item.ProductID, out ProductResponse? product))
+      {
+        _mapper.Map(product, item);
+      }
+    }
+  }
+
+  private async Task<IEnumerable<ProductResponse?>> ValidateAndGetProductIDsExistInProductsMS(Guid[] productIDs)
+  {
+    IEnumerable<ProductResponse?> existingProducts = await _productsMicroserviceClient.GetProductsByProductIDs(productIDs);
+
+    if (existingProducts.Count() != productIDs.Length)
+    {
+      Guid[] missingProductIDs = productIDs
+        .Where(productID => !existingProducts.Any(product => product != null && product.ProductID == productID))
+        .ToArray();
+
+      throw new ArgumentException($"Invalid Product IDs: {string.Join(", ", missingProductIDs)}");
+    }
+
+    return existingProducts;
+  }
+
+  private void CalculateOrderValues(Order order)
+  {
+    foreach (OrderItem item in order.OrderItems)
+    {
+      item.TotalPrice = (item.UnitPrice * item.Quantity);
+    }
+
+    order.TotalBill = order.OrderItems.Sum(item => item.TotalPrice);
   }
 }
