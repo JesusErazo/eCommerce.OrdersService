@@ -35,7 +35,7 @@ public class OrdersController : ControllerBase
   [HttpGet("search/productid/{productID:guid}")]
   public async Task<IEnumerable<OrderResponse?>> GetOrdersByProductID(Guid productID)
   {
-    if (productID == Guid.Empty) return null;
+    if (productID == Guid.Empty) return [];
 
     FilterDefinition<Order> filter = Builders<Order>.Filter
       .ElemMatch(
@@ -62,7 +62,7 @@ public class OrdersController : ControllerBase
   [HttpGet("search/userid/{userID:guid}")]
   public async Task<IEnumerable<OrderResponse?>> GetOrdersByUserID(Guid userID)
   {
-    if (userID == Guid.Empty) return null;
+    if (userID == Guid.Empty) return [];
 
     FilterDefinition<Order> filter = Builders<Order>.Filter
       .Eq(order => order.UserID,userID);
