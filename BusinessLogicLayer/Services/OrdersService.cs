@@ -254,7 +254,10 @@ public class OrdersService : IOrdersService
   {
     if (order is null || userData is null) return;
 
-    if (order.UserID != userData.UserID) return;
+    if (userData.UserID != Guid.Empty)
+    {
+      if (order.UserID != userData.UserID) return;
+    }
 
     _mapper.Map(userData, order);
   }
