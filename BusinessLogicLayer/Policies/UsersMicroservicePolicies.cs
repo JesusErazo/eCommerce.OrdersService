@@ -19,11 +19,11 @@ public class UsersMicroservicePolicies : IUsersMicroservicePolicies
     AsyncCircuitBreakerPolicy<HttpResponseMessage> policy =
     Policy.HandleResult<HttpResponseMessage>(r => !r.IsSuccessStatusCode)
     .CircuitBreakerAsync(
-      handledEventsAllowedBeforeBreaking: 3,
+      handledEventsAllowedBeforeBreaking: 4,
       durationOfBreak: TimeSpan.FromMinutes(2),
       onBreak: (outcome, timespan) =>
       {
-        _logger.LogInformation($"Circuit breaker opened for {timespan.TotalMinutes} minutes due to consecutive 3 failures. The subsequent requests will be blocked");
+        _logger.LogInformation($"Circuit breaker opened for {timespan.TotalMinutes} minutes due to consecutive 4 failures. The subsequent requests will be blocked");
       },
       onReset: () =>
       {

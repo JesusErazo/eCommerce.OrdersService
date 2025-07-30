@@ -37,7 +37,10 @@ builder.Services.AddTransient<IProductsMicroservicePolicies, ProductsMicroservic
 //HTTP Clients
 builder.Services.AddHttpClient<UsersMicroserviceClient>(client =>
 {
-  client.BaseAddress = new Uri($"http://{builder.Configuration["USERS_MICROSERVICE_NAME"]}:{builder.Configuration["USERS_MICROSERVICE_PORT"]}");
+  string host = builder.Configuration["USERS_MICROSERVICE_NAME"]!;
+  string port = builder.Configuration["USERS_MICROSERVICE_PORT"]!;
+  client.BaseAddress = new Uri($"http://{host}:{port}");
+
 }).AddPolicyHandler(
     builder.Services.BuildServiceProvider().GetRequiredService<IUsersMicroservicePolicies>().GetRetryPolicy()
   )

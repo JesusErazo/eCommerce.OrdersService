@@ -53,30 +53,38 @@ public class ProductsMicroserviceClient
     pollyContext["productIDs"] = productIDs;
 
     HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, url);
-    //TO DO: Continue here
+    request.SetResilienceContext(resilienceContext);
 
-    HttpResponseMessage response = await _httpClient.SendAsync(request);
-
-    if (!response.IsSuccessStatusCode)
+    try
     {
-      if(response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+      HttpResponseMessage response = await _httpClient.SendAsync(request);
+
+      if (!response.IsSuccessStatusCode)
       {
-        throw new HttpRequestException("Bad request",null,response.StatusCode);
+        if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+        {
+          throw new HttpRequestException("Bad request", null, response.StatusCode);
+        }
+        else
+        {
+          throw new HttpRequestException($"Http request failed with status code {response.StatusCode}");
+        }
       }
-      else
+
+      IEnumerable<ProductResponse>? products = await response.Content
+        .ReadFromJsonAsync<IEnumerable<ProductResponse>>();
+
+      if (products is null)
       {
-        throw new HttpRequestException($"Http request failed with status code {response.StatusCode}");
+        throw new ArgumentException("Invalid Product ID");
       }
+
+      return products;
     }
-
-    IEnumerable<ProductResponse>? products = await response.Content
-      .ReadFromJsonAsync<IEnumerable<ProductResponse>>();
-
-    if(products is null)
+    finally
     {
-      throw new ArgumentException("Invalid Product ID");
+      ResilienceContextPool.Shared.Return(resilienceContext);
     }
-
-    return products;
+    
   }
 }
