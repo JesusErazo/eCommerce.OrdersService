@@ -1,4 +1,6 @@
 ﻿using eCommerce.OrdersService.BusinessLogicLayer.DTO;
+using eCommerce.OrdersService.BusinessLogicLayer.Policies;
+using Polly;
 using System.Net.Http.Json;
 
 namespace eCommerce.OrdersService.BusinessLogicLayer.HttpClients;
@@ -44,28 +46,45 @@ public class ProductsMicroserviceClient
     string queryStrings = string.Join("&ids=",productIDs);
     string url = $"/api/products/search?ids={queryStrings}";
 
-    HttpResponseMessage response = await _httpClient.GetAsync(url);
+    ResilienceContext resilienceContext = ResilienceContextPool.Shared.Get();
+    resilienceContext.Properties.Set(ProductsMicroservicePolicies.ProductIDsKey, productIDs);
 
-    if (!response.IsSuccessStatusCode)
+    Context pollyContext = new Context($"GetProducts-{Guid.NewGuid()}");
+    pollyContext["productIDs"] = productIDs;
+
+    HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, url);
+    request.SetResilienceContext(resilienceContext);
+
+    try
     {
-      if(response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+      HttpResponseMessage response = await _httpClient.SendAsync(request);
+
+      if (!response.IsSuccessStatusCode)
       {
-        throw new HttpRequestException("Bad request",null,response.StatusCode);
+        if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+        {
+          throw new HttpRequestException("Bad request", null, response.StatusCode);
+        }
+        else
+        {
+          throw new HttpRequestException($"Http request failed with status code {response.StatusCode}");
+        }
       }
-      else
+
+      IEnumerable<ProductResponse>? products = await response.Content
+        .ReadFromJsonAsync<IEnumerable<ProductResponse>>();
+
+      if (products is null)
       {
-        throw new HttpRequestException($"Http request failed with status code {response.StatusCode}");
+        throw new ArgumentException("Invalid Product ID");
       }
+
+      return products;
     }
-
-    IEnumerable<ProductResponse>? products = await response.Content
-      .ReadFromJsonAsync<IEnumerable<ProductResponse>>();
-
-    if(products is null)
+    finally
     {
-      throw new ArgumentException("Invalid Product ID");
+      ResilienceContextPool.Shared.Return(resilienceContext);
     }
-
-    return products;
+    
   }
 }

@@ -76,7 +76,11 @@ public class OrdersService : IOrdersService
     }
 
     //Logic for checking if productID exist in products microservice
-    Guid[] productIDs = orderAddRequest.OrderItems.Select(x => x.ProductID).ToArray();
+    Guid[] productIDs = orderAddRequest.OrderItems
+      .Select(x => x.ProductID)
+      .Distinct()
+      .ToArray();
+
     IEnumerable<ProductResponse?> existingProducts = await ValidateAndGetProductIDsExistInProductsMS(productIDs);
 
     Order orderInput = _mapper.Map<Order>(orderAddRequest);
@@ -197,7 +201,11 @@ public class OrdersService : IOrdersService
     }
 
     //logic for checking if product IDs exist in products microservice
-    Guid[] productIDs = orderUpdateRequest.OrderItems.Select(x => x.ProductID).ToArray();
+    Guid[] productIDs = orderUpdateRequest.OrderItems
+      .Select(x => x.ProductID)
+      .Distinct()
+      .ToArray();
+
     IEnumerable<ProductResponse?> existingProducts = await ValidateAndGetProductIDsExistInProductsMS(productIDs);
 
     Order orderInput = _mapper.Map<Order>(orderUpdateRequest);
@@ -227,6 +235,7 @@ public class OrdersService : IOrdersService
     Guid[] userIDs = orders
       .Where(order => order is not null && order.UserID != Guid.Empty)
       .Select(order => order!.UserID)
+      .Distinct()
       .ToArray();
 
     if (userIDs.Length < 1) return;
@@ -268,7 +277,10 @@ public class OrdersService : IOrdersService
     
     if (order is null || order.OrderItems.Count < 1) return;
 
-    Guid[] orderProductIDs = order.OrderItems.Select(item => item.ProductID).ToArray();
+    Guid[] orderProductIDs = order.OrderItems
+      .Select(item => item.ProductID)
+      .Distinct()
+      .ToArray();
 
     IEnumerable<ProductResponse?> orderProducts = await _productsMicroserviceClient.GetProductsByProductIDs(orderProductIDs);
 
@@ -304,6 +316,7 @@ public class OrdersService : IOrdersService
     {
       Guid[] missingProductIDs = productIDs
         .Where(productID => !existingProducts.Any(product => product != null && product.ProductID == productID))
+        .Distinct()
         .ToArray();
 
       throw new ArgumentException($"Invalid Product IDs: {string.Join(", ", missingProductIDs)}");
